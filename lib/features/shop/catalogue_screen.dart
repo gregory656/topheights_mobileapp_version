@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../app/top_heights_theme.dart';
 import '../../data/catalogue_repository.dart';
+import '../../data/order_repository.dart';
+import 'request_desk.dart';
 import '../shell/brand_mark.dart';
 
 class CatalogueScreen extends StatefulWidget {
@@ -46,7 +48,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     if (action == 'delete' && mounted) { final confirm = await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Remove this category?'), content: const Text('Products in this category will be kept and become uncategorised.'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove'))])); if (confirm == true) { await _repo.deleteCategory(category.id); if (_category == category.id) _category = ''; await _load(); } }
   }
   void _message(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-  Future<void> _detail(CatalogueProduct p) async { await _repo.markViewed(p.id); if (!mounted) return; await showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (context) => _ProductDetail(product: p, onFavourite: () async { await _repo.toggleFavourite(p); if (context.mounted) Navigator.pop(context); _load(); }, onEdit: () { Navigator.pop(context); _edit(p); })); await _load(); }
+  Future<void> _detail(CatalogueProduct p) async { await _repo.markViewed(p.id); if (!mounted) return; await showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (context) => _ProductDetail(product: p, onFavourite: () async { await _repo.toggleFavourite(p); if (context.mounted) Navigator.pop(context); _load(); }, onEdit: () { Navigator.pop(context); _edit(p); }, onAdd: () async { try { await OrderRepository().add(p.id, p.name, p.priceMinor); if (context.mounted) Navigator.pop(context); _message('${p.name} added to your request desk.'); } catch (e) { _message(e.toString().replaceFirst('Invalid argument(s): ', '')); } })); await _load(); }
   Future<void> _compareSelected() async {
     final items = _products.where((p) => _compare.contains(p.id)).toList();
     if (items.length < 2) {
@@ -102,6 +104,8 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     return SingleChildScrollView(padding: EdgeInsets.fromLTRB(pad, 12, pad, 36), child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1180), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _ShopHero(onAdd: () => _edit(), onManage: _categoryEditor),
       const SizedBox(height: 22),
+      Align(alignment: Alignment.centerRight, child: FilledButton.tonalIcon(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const RequestDesk())), icon: const Icon(Icons.shopping_bag_outlined), label: const Text('Request desk'))),
+      const SizedBox(height: 10),
       TextField(controller: _search, onChanged: (_) => _load(), decoration: InputDecoration(prefixIcon: const Icon(Icons.search_rounded), hintText: 'Search products, SKUs, models or specifications', suffixIcon: _search.text.isEmpty ? null : IconButton(onPressed: () { _search.clear(); _load(); }, icon: const Icon(Icons.close_rounded)))),
       const SizedBox(height: 15),
       SizedBox(height: 43, child: ListView(scrollDirection: Axis.horizontal, children: [ChoiceChip(label: const Text('Everything'), selected: _category.isEmpty, onSelected: (_) => setState(() { _category = ''; _load(); })), const SizedBox(width: 8), ..._categories.map((c) => Padding(padding: const EdgeInsets.only(right: 8), child: GestureDetector(onLongPress: () => _editCategory(c), child: Tooltip(message: 'Long press to edit or remove', child: ChoiceChip(label: Text(c.name), selected: _category == c.id, onSelected: (_) => setState(() { _category = c.id; _load(); })))))) ])),
@@ -127,9 +131,10 @@ class _EmptyCatalogue extends StatelessWidget { const _EmptyCatalogue({required 
 class _ProductCard extends StatelessWidget { const _ProductCard({required this.product, required this.selected, required this.onTap, required this.onEdit, required this.onSelect, required this.onFavourite, required this.onDelete}); final CatalogueProduct product; final bool selected; final VoidCallback onTap, onEdit, onFavourite, onDelete; final ValueChanged<bool> onSelect; @override Widget build(BuildContext context) => Card(child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(22), child: Padding(padding: const EdgeInsets.all(17), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Expanded(child: Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium)), IconButton(visualDensity: VisualDensity.compact, tooltip: product.favourite ? 'Remove favourite' : 'Add favourite', onPressed: onFavourite, icon: Icon(product.favourite ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: product.favourite ? Colors.redAccent : BrandColors.muted)), PopupMenuButton<String>(onSelected: (v) => v == 'edit' ? onEdit() : onDelete(), itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('Edit')), PopupMenuItem(value: 'delete', child: Text('Remove'))])]), Text([if (product.sku.isNotEmpty) 'SKU ${product.sku}', if (product.model.isNotEmpty) product.model].join(' · ').isEmpty ? 'No SKU or model recorded' : [if (product.sku.isNotEmpty) 'SKU ${product.sku}', if (product.model.isNotEmpty) product.model].join(' · '), style: const TextStyle(color: BrandColors.muted, fontSize: 11)), const Spacer(), Text(_price(product.priceMinor), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: BrandColors.forest)), const SizedBox(height: 3), Text(_stock(product), style: const TextStyle(fontSize: 11, color: BrandColors.muted)), const Divider(height: 19), Row(children: [Expanded(child: Text(product.specifications.isEmpty ? 'Specifications not recorded' : product.specifications.entries.take(2).map((e) => '${e.key}: ${e.value}').join(' · '), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: BrandColors.muted))), Checkbox(value: selected, onChanged: (v) => onSelect(v == true), visualDensity: VisualDensity.compact), const Text('Compare', style: TextStyle(fontSize: 10))])])))); }
 
 class _ProductDetail extends StatelessWidget {
-  const _ProductDetail({required this.product, required this.onFavourite, required this.onEdit});
+  const _ProductDetail({required this.product, required this.onFavourite, required this.onEdit, required this.onAdd});
   final CatalogueProduct product;
   final VoidCallback onFavourite, onEdit;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -171,7 +176,7 @@ class _ProductDetail extends StatelessWidget {
                 ]),
               )),
             const SizedBox(height: 16),
-            FilledButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined), label: const Text('Edit product')),
+            Wrap(spacing: 10, children: [FilledButton.icon(onPressed: product.priceMinor == null ? null : onAdd, icon: const Icon(Icons.add_shopping_cart_rounded), label: const Text('Add to request')), OutlinedButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined), label: const Text('Edit product'))]),
           ],
         ),
       ),
