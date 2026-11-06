@@ -7,7 +7,7 @@ class LocalDatabase {
   LocalDatabase._();
   static final LocalDatabase instance = LocalDatabase._();
   static const _databaseName = 'top_heights_local.db';
-  static const _databaseVersion = 2;
+  static const _databaseVersion = 3;
   Database? _database;
 
   Future<Database> get database async {
@@ -59,6 +59,27 @@ class LocalDatabase {
       'updated_at': now,
     });
     await _createCatalogue(db);
+    await _createOrders(db);
+  }
+
+  Future<void> _createOrders(Database db) async {
+    await db.execute('''CREATE TABLE cart_items (
+      product_id TEXT PRIMARY KEY, product_name TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity > 0),
+      unit_price_minor INTEGER NOT NULL CHECK(unit_price_minor >= 0), currency TEXT NOT NULL DEFAULT 'KES',
+      added_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )''');
+    await db.execute('''CREATE TABLE local_orders (
+      id TEXT PRIMARY KEY, reference TEXT NOT NULL UNIQUE, status TEXT NOT NULL CHECK(status IN ('Draft','Submitted locally','Cancelled')),
+      customer_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL,
+      delivery_preference TEXT NOT NULL, currency TEXT NOT NULL, subtotal_minor INTEGER NOT NULL,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )''');
+    await db.execute('''CREATE TABLE local_order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, order_id TEXT NOT NULL REFERENCES local_orders(id) ON DELETE CASCADE,
+      product_id TEXT NOT NULL, product_name TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity > 0),
+      unit_price_minor INTEGER NOT NULL, currency TEXT NOT NULL
+    )''');
+    await db.execute('CREATE INDEX local_order_history_idx ON local_orders(created_at DESC)');
   }
 
   Future<void> _createCatalogue(Database db) async {
@@ -102,6 +123,8 @@ class LocalDatabase {
           await _createSchema(db, version);
         case 2:
           await _createCatalogue(db);
+        case 3:
+          await _createOrders(db);
       }
     }
   }
