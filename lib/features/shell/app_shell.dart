@@ -4,9 +4,9 @@ import '../../app/top_heights_theme.dart';
 import '../../data/customer_profile.dart';
 import '../../data/profile_repository.dart';
 import '../spaces/account_screen.dart';
-import '../spaces/empty_destination_screen.dart';
 import '../spaces/home_screen.dart';
 import '../spaces/energy_studio_screen.dart';
+import '../spaces/projects_screen.dart';
 import '../shop/catalogue_screen.dart';
 import 'brand_mark.dart';
 
@@ -58,7 +58,7 @@ class _AppShellState extends State<AppShell> {
     ),
     _Destination.shop => const CatalogueScreen(),
     _Destination.studio => const EnergyStudioScreen(),
-    _Destination.energy => const EmptyDestinationScreen.energy(),
+    _Destination.energy => const ProjectsScreen(),
     _Destination.account => AccountScreen(
       repository: widget.profileRepository,
       profile: profile,

@@ -7,7 +7,7 @@ class LocalDatabase {
   LocalDatabase._();
   static final LocalDatabase instance = LocalDatabase._();
   static const _databaseName = 'top_heights_local.db';
-  static const _databaseVersion = 4;
+  static const _databaseVersion = 5;
   Database? _database;
 
   Future<Database> get database async {
@@ -61,6 +61,52 @@ class LocalDatabase {
     await _createCatalogue(db);
     await _createOrders(db);
     await _createEnergyStudio(db);
+    await _createProjects(db);
+  }
+
+  Future<void> _createProjects(Database db) async {
+    await db.execute('''CREATE TABLE quote_drafts (
+      id TEXT PRIMARY KEY, assessment_id TEXT, title TEXT NOT NULL,
+      current_version INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'Draft saved locally',
+      accepted_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )''');
+    await db.execute('''CREATE TABLE quote_versions (
+      quote_id TEXT NOT NULL REFERENCES quote_drafts(id) ON DELETE CASCADE,
+      version INTEGER NOT NULL, snapshot TEXT NOT NULL, created_at TEXT NOT NULL,
+      PRIMARY KEY(quote_id, version)
+    )''');
+    await db.execute('''CREATE TABLE site_visit_requests (
+      id TEXT PRIMARY KEY, assessment_id TEXT, project_id TEXT, preferred_windows TEXT NOT NULL,
+      contact_name TEXT NOT NULL, contact_phone TEXT NOT NULL, contact_email TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL, site_notes TEXT NOT NULL DEFAULT '', access_constraints TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'Request saved locally', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )''');
+    await db.execute('''CREATE TABLE projects (
+      id TEXT PRIMARY KEY, quote_id TEXT, request_id TEXT, assessment_id TEXT,
+      title TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'Planned locally',
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )''');
+    await db.execute('''CREATE TABLE project_milestones (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title TEXT NOT NULL, details TEXT NOT NULL DEFAULT '', state TEXT NOT NULL DEFAULT 'Planned locally',
+      target_date TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    )''');
+    await db.execute('''CREATE TABLE project_events (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL, summary TEXT NOT NULL, created_at TEXT NOT NULL
+    )''');
+    await db.execute('''CREATE TABLE project_documents (
+      id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      name TEXT NOT NULL, kind TEXT NOT NULL, reference TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    )''');
+    await db.execute(
+      'CREATE INDEX quote_history_idx ON quote_drafts(updated_at DESC)',
+    );
+    await db.execute(
+      'CREATE INDEX project_history_idx ON projects(updated_at DESC)',
+    );
   }
 
   Future<void> _createEnergyStudio(Database db) async {
@@ -186,6 +232,8 @@ class LocalDatabase {
           await _createOrders(db);
         case 4:
           await _createEnergyStudio(db);
+        case 5:
+          await _createProjects(db);
       }
     }
   }
